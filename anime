@@ -1,0 +1,190 @@
+#!/bin/bash
+
+PAGE=1
+FZF="fzf --cycle --no-info --layout=reverse"
+ROFI="rofi -dmenu -theme gruvbox-dark -i -matching fuzzy"
+
+DOWNLAOD_DIR="$HOME/Documents/Anime"
+
+scrape (){
+
+  TMP="/tmp/anime.txt"
+
+  TMP_ANIMELINKS="/tmp/animelinks.txt"
+
+  TMP_ANIMETITLES="/tmp/animetitles.txt"
+
+  TMP_ANIME_EP="/tmp/animechapter.txt"
+
+   REMOVAL="rm $TMP $TMP_ANIMELINKS $TMP_ANIMETITLES $TMP_ANIME_EP"
+
+  S_QUERY="$(echo "$query" | sed 's/[[:space:]]/+/g')"
+  
+  URL="https://anistream.fun"
+  
+  SEARCH_URL="results?q="
+  
+  curl -s "$URL/$SEARCH_URL$S_QUERY&p=$PAGE" \
+  -H 'cache-control: max-age=0' \
+  -H 'upgrade-insecure-requests: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36' \
+  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
+  -H 'referer: https://anistream.fun/' \
+  -H 'accept-language: en-US,en;q=0.9' \
+  --compressed -o $TMP
+
+  LINKS="$( grep -A 1 '<h6 class="card-title' $TMP | sed -n 's/.*href="\([^"]*\).*/\1/p' > $TMP_ANIMELINKS )"
+
+  TOTAL_LINKS="$( wc -l $TMP_ANIMELINKS | awk '{print $1}' )"
+
+   TITLES="$(grep -A 1 '<h6 class="card-title.*' $TMP | sed 's/--//g' | sed -e 's/<[^>]*>//g' | sed 's/^ [ \t]*//g' | sed '/^[[:space:]]*$/d' | cat -n | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | sed "s/&#39;s/'s/g"  > $TMP_ANIMETITLES )"
+
+   SHOW_TITLES="$(cat $TMP_ANIMETITLES)"
+
+   [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && [[ -z "$SHOW_TITLES" ]] && notify-send "Manga" "No Result Found! Or the Server is Down! Try Again Later!"
+   [[ -z "$SHOW_TITLES" ]] && echo "No Result Found! Or the Server is Down! Try Again Later!" && $REMOVAL > /dev/null 2>&1 && exit 0
+     
+
+   [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime($PAGE/$TOTAL_LINKS)"
+
+   [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime($PAGE/$TOTAL_LINKS) --header-first --no-preview"
+
+   ANIME_TITLE="$( echo -e "$SHOW_TITLES\n0 Go to Next Page($PAGE/$TOTAL_LINKS)"| $MENU )"
+
+   ANIME_SEL="$( echo -e "$ANIME_TITLE"  | awk '{print $1}')"
+
+   [[ -z "$ANIME_SEL" ]] && $REMOVAL > /dev/null 2>&1 && exit
+   [[ -z "$ANIME_SEL" ]] && exit   
+
+   ANIME_SEL_LINK="$( head -n$ANIME_SEL $TMP_ANIMELINKS | tail -n1  )" 
+   
+   [[ "$ANIME_SEL" = 0 ]] && PAGE="$(($PAGE+1))" && scrape
+
+  curl -s "$URL$ANIME_SEL_LINK" \
+  -H 'cache-control: max-age=0' \
+  -H 'upgrade-insecure-requests: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36' \
+  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
+  -H 'referer: https://animestream.fun/' \
+  -H 'accept-language: en-US,en;q=0.9' \
+  --compressed -o $TMP
+
+  F_TITLE="$(echo "$ANIME_TITLE" | sed -e 's/[0-9]//g' -e 's/^[[:space:]]//g' -e 's/[[:space:]]/-/g')"
+  CHAPTER_LIST="$( grep -A 1 '<a href="/view' $TMP | sed 's/--//g' | sed -e 's/<[^>]*>//g' | sed 's/^ [ \t]*//g' | sed '/^[[:space:]]*$/d' | sed "s/^/$F_TITLE - Episode Number /g" | cat -n | sed 's/^ [ \t]*//g'    > $TMP_ANIME_EP)"
+  F_TITLE="$(echo "$ANIME_TITLE" | sed -e 's/[0-9]//g' -e 's/^[[:space:]]//g' -e 's/[[:space:]]/-/g')"
+
+  TOTAL_CHP="$(wc -l $TMP_ANIME_EP | awk '{print $1}')"
+
+   [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="" && MENU="$ROFI -p Anime($F_TITLE/$TOTAL_CHP)"
+
+   [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime($F_TITLE/$TOTAL_CHP) --no-preview --header-first"
+
+  CHAPTER_LINK="$(sed -e '1,/<div id="epslistplace/d' $TMP | sed '/<script>/{s/\(.*<script>\).*/\1/;q}' | grep -o '<a .*' | sed -n 's/.*href="\([^"]*\).*/\1/p')"
+
+  SEL_CHAPTER_LIST="$(cat "$TMP_ANIME_EP" | $MENU )"
+
+  [[ -z "$SEL_CHAPTER_LIST" ]] && $REMOVAL > /dev/null 2>&1 && exit 
+
+  SELECTED_CHAPTER_LIST="$(echo -e "$SEL_CHAPTER_LIST" | awk '{print $1}' )"
+
+  CHAPTER_URL="$(echo -e "$CHAPTER_LINK" | head -n$SELECTED_CHAPTER_LIST | tail -n1)"
+
+  G_GOGO_URL="$(curl -s "$URL$CHAPTER_URL" \
+  -H 'cache-control: max-age=0' \
+  -H 'upgrade-insecure-requests: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36' \
+  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
+  -H 'referer: https://animebuddy.com/' \
+  -H 'accept-language: en-US,en;q=0.9' \
+  --compressed |  grep '<iframe src="//g' | sed -n 's/.*src="\([^"]*\).*/\1/p' | sed '/^[[:space:]]*$/d' )"
+
+  CDN_URL="https://gogoplay.io/encrypt-ajax.php"
+
+  VIDEO_ID="$(echo "$G_GOGO_URL" | cut -d\? -f2 | cut -d\& -f1 | sed 's/id=//g' )"
+
+  KEY='3235373436353338353932393338333936373634363632383739383333323838'
+  IV='34323036393133333738303038313335'
+   
+  DECRYPT_ID="$(echo "$VIDEO_ID" | openssl enc -aes256  -K "$KEY" -iv "$IV" -a)"
+
+  curl -s -H 'x-requested-with:XMLHttpRequest' "$CDN_URL" -d "id=$DECRYPT_ID" -d "time=69420691337800813569" | jq -r '.source[].file' > $TMP_ANIMELINKS
+
+ [[ -z "$(cat $TMP_ANIMELINKS)" ]] && echo "Unable To get the Link! Try Again!" && exit
+
+  PROMPTO="$(echo -e "1 Open: 360p \n2 Open: 420p\n3 Open: 720p\n4 Open: 1080p\n5 Download 360p\n6 Download 420p\n7 Download 720p\n8 Download 1080p" | $MENU | awk '{print $1}')"
+
+  DIR_CHECK()
+      {
+	[[ ! -d "$DOWNLAOD_DIR/$F_TITLE" ]] && mkdir -p $DOWNLAOD_DIR/$F_TITLE
+ 	echo "Downloading $F_TITLE, Episode $SELECTED_CHAPTER_LIST in $DOWNLAOD_DIR"
+      }
+
+      RM()
+      {
+		$REMOVAL > /dev/null 2>&1
+      }
+
+      OKAY()
+      {
+	echo "$F_TITLE EP-$SELECTED_CHAPTER_LIST Download Complete! : $DOWNLAOD_DIR/$F_TITLE"
+      }
+  
+      LINK_360="$(cat $TMP_ANIMELINKS | head -n1 | tail -n1 )"
+      LINK_420="$(cat $TMP_ANIMELINKS | head -n2 | tail -n1)"
+      LINK_720="$(cat $TMP_ANIMELINKS | head -n3 | tail -n1)"
+      LINK_1080="$(cat $TMP_ANIMELINKS | head -n4 | tail -n1)"
+
+  case $PROMPTO in
+    1)
+      mpv --really-quiet "$LINK_360" & disown
+      RM
+      exit;;
+    2)
+      mpv --really-quiet "$LINK_420" & disown 
+      RM
+      exit;;
+    3)
+      mpv --really-quiet "$LINK_720" & disown 
+      RM
+      exit;;
+    4)
+      mpv --really-quiet "$LINK_1080" & disown 
+      RM
+      exit;;
+    5)
+      DIR_CHECK
+      curl "$LINK_360" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      OKAY
+      RM
+      exit;;
+    6)
+      DIR_CHECK
+      curl "$LINK_420" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      OKAY
+      RM
+      exit;;
+    7)
+      DIR_CHECK
+      curl "$LINK_720" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      OKAY
+      RM
+      exit;;
+    8)
+      DIR_CHECK
+      curl "$LINK_1080" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      OKAY
+      RM
+      exit;;
+    *)
+      RM
+      exit;;
+  esac
+
+exit
+
+}
+
+[[ -z "$@" ]] && read -r -p 'Search : ' query && MENU="$FZF" scrape || \
+  [[ "$1" = "--rofi" ]] && query="$(rofi -dmenu -theme dmenu -p 'Search ')" && MENU="$ROFI" && scrape || \
+  query="$@" && MENU="$FZF" && scrape 
+

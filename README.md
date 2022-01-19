@@ -14,7 +14,8 @@ A CLI Tool to Search, Stream & Download Anime from Terminal either using Rofi or
 5. fzf (for menu)
 6. rofi (for menu-optional)
 7. mpv  (video-player for streaming anime)
-8. cat, head, tail, openssl, awk  
+8. youtube-dl/yt-dlp
+9. cat, head, tail, openssl, awk  
 
 ## Installation
 
@@ -36,7 +37,7 @@ However, if you often watch anime and prefer not to open the browser or would li
     
     Download Directory: $HOME/Documents/Anime
 
-    Essential Dependencies: curl, mpv, sed, grep, awk, cat, head, tail, wc, fzf, curl , jq
+    Essential Dependencies: curl, mpv, sed, grep, awk, cat, head, tail, wc, fzf, curl , jq , youtube-dl/yt-dlp
 
     Note: There is No -h, --help Flags associated with the script!
 

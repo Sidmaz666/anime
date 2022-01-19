@@ -8,12 +8,13 @@ A CLI Tool to Search, Stream & Download Anime from Terminal either using Rofi or
 ## Dependencies
 
 1. curl (for scrapping)
-2. sed (for regex)
-3. grep (for regex)
-4. fzf (for menu)
-5. rofi (for menu-optional)
-6. mpv  (video-player for streaming anime)
-7. cat, head, tail, openssl, awk  
+2. jq (for decrypting url)
+3. sed (for regex)
+4. grep (for regex)
+5. fzf (for menu)
+6. rofi (for menu-optional)
+7. mpv  (video-player for streaming anime)
+8. cat, head, tail, openssl, awk  
 
 ## Installation
 
@@ -35,7 +36,7 @@ However, if you often watch anime and prefer not to open the browser or would li
     
     Download Directory: $HOME/Documents/Anime
 
-    Essential Dependencies: curl, mpv, sed, grep, awk, cat, head, tail, wc, fzf, curl
+    Essential Dependencies: curl, mpv, sed, grep, awk, cat, head, tail, wc, fzf, curl , jq
 
     Note: There is No -h, --help Flags associated with the script!
 

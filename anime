@@ -6,6 +6,10 @@ ROFI="rofi -dmenu -theme gruvbox-dark -i -matching fuzzy"
 
 DOWNLAOD_DIR="$HOME/Documents/Anime"
 
+LOGFILE="$HOME/.cache/anime_watch_history"
+
+[[ -z "$LOGFILE" ]] && LW="" || LW="$(cat $LOGFILE)"
+
 scrape (){
 
   TMP="/tmp/anime.txt"
@@ -16,7 +20,7 @@ scrape (){
 
   TMP_ANIME_EP="/tmp/animechapter.txt"
 
-   REMOVAL="rm $TMP $TMP_ANIMELINKS $TMP_ANIMETITLES $TMP_ANIME_EP"
+  REMOVAL="rm $TMP $TMP_ANIMELINKS $TMP_ANIMETITLES $TMP_ANIME_EP"
 
   S_QUERY="$(echo "$query" | sed 's/[[:space:]]/+/g')"
   
@@ -69,9 +73,8 @@ scrape (){
   -H 'accept-language: en-US,en;q=0.9' \
   --compressed -o $TMP
 
-  F_TITLE="$(echo "$ANIME_TITLE" | sed -e 's/[0-9]//g' -e 's/^[[:space:]]//g' -e 's/[[:space:]]/-/g')"
+  F_TITLE="$(echo "$ANIME_TITLE" | sed -e 's/^[0-9]//g' -e 's/^[[:space:]]//g' -e 's/[[:space:]]/-/g')"
   CHAPTER_LIST="$( grep -A 1 '<a href="/view' $TMP | sed 's/--//g' | sed -e 's/<[^>]*>//g' | sed 's/^ [ \t]*//g' | sed '/^[[:space:]]*$/d' | sed "s/^/$F_TITLE - Episode Number /g" | cat -n | sed 's/^ [ \t]*//g'    > $TMP_ANIME_EP)"
-  F_TITLE="$(echo "$ANIME_TITLE" | sed -e 's/[0-9]//g' -e 's/^[[:space:]]//g' -e 's/[[:space:]]/-/g')"
 
   TOTAL_CHP="$(wc -l $TMP_ANIME_EP | awk '{print $1}')"
 
@@ -121,7 +124,8 @@ scrape (){
 
       RM()
       {
-		$REMOVAL > /dev/null 2>&1
+	echo "$F_TITLE Episode $SELECTED_CHAPTER_LIST" > $LOGFILE
+	$REMOVAL > /dev/null 2>&1
       }
 
       OKAY()
@@ -184,7 +188,8 @@ exit
 
 }
 
-[[ -z "$@" ]] && read -r -p 'Search : ' query && MENU="$FZF" scrape || \
-  [[ "$1" = "--rofi" ]] && query="$(rofi -dmenu -theme dmenu -p 'Search ')" && MENU="$ROFI" && scrape || \
+[[ -z "$@" ]] && read -r -p "Last Seen: $LW
+Search >  " query && MENU="$FZF" scrape || \
+  [[ "$1" = "--rofi" ]] && query="$(rofi -dmenu -theme dmenu -p "Last Seen : $LW | Search ")" && MENU="$ROFI" && scrape || \
   query="$@" && MENU="$FZF" && scrape 
 

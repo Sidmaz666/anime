@@ -8,6 +8,9 @@ DOWNLAOD_DIR="$HOME/Documents/Anime"
 
 LOGFILE="$HOME/.cache/anime_watch_history"
 
+NP=""
+PP=""
+
 [[ -z "$LOGFILE" ]] && LW="" || LW="$(cat $LOGFILE)"
 
 scrape (){
@@ -20,7 +23,9 @@ scrape (){
 
   TMP_ANIME_EP="/tmp/animechapter.txt"
 
-  REMOVAL="rm $TMP $TMP_ANIMELINKS $TMP_ANIMETITLES $TMP_ANIME_EP"
+  TMP_CRR_EP="/tmp/current_episode.txt"
+
+  REMOVAL="rm $TMP $TMP_ANIMELINKS $TMP_ANIMETITLES $TMP_ANIME_EP $TMP_CRR_EP /tmp/crr_ep_number.txt"
 
   S_QUERY="$(echo "$query" | sed 's/[[:space:]]/+/g')"
   
@@ -53,9 +58,12 @@ scrape (){
 
    [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime($PAGE/$TOTAL_LINKS) --header-first --no-preview"
 
-   ANIME_TITLE="$( echo -e "$SHOW_TITLES\n0 Go to Next Page($PAGE/$TOTAL_LINKS)"| $MENU )"
+   [[ "$NP" != "yes" ]] && [[ "$PP" != "yes" ]] && ANIME_TITLE="$( echo -e "$SHOW_TITLES\n0 Go to Next Page($PAGE/$TOTAL_LINKS)"| $MENU )"
 
+   [[ "$NP" = "yes" ]] || [[ "$PP" = "yes" ]] && [[ ! -z "$(cat $TMP_CRR_EP)" ]] && ANIME_SEL="$(cat $TMP_CRR_EP)" || \
    ANIME_SEL="$( echo -e "$ANIME_TITLE"  | awk '{print $1}')"
+
+   echo "$ANIME_SEL" > $TMP_CRR_EP 
 
    [[ -z "$ANIME_SEL" ]] && $REMOVAL > /dev/null 2>&1 && exit
    [[ -z "$ANIME_SEL" ]] && exit   
@@ -74,6 +82,7 @@ scrape (){
   --compressed -o $TMP
 
   F_TITLE="$(echo "$ANIME_TITLE" | sed -e 's/^[0-9]//g' -e 's/^[[:space:]]//g' -e 's/[[:space:]]/-/g')"
+
   CHAPTER_LIST="$( grep -A 1 '<a href="/view' $TMP | sed 's/--//g' | sed -e 's/<[^>]*>//g' | sed 's/^ [ \t]*//g' | sed '/^[[:space:]]*$/d' | sed "s/^/$F_TITLE - Episode Number /g" | cat -n | sed 's/^ [ \t]*//g'    > $TMP_ANIME_EP)"
 
   TOTAL_CHP="$(wc -l $TMP_ANIME_EP | awk '{print $1}')"
@@ -83,8 +92,18 @@ scrape (){
    [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime($F_TITLE/$TOTAL_CHP) --no-preview --header-first"
 
   CHAPTER_LINK="$(sed -e '1,/<div id="epslistplace/d' $TMP | sed '/<script>/{s/\(.*<script>\).*/\1/;q}' | grep -o '<a .*' | sed -n 's/.*href="\([^"]*\).*/\1/p')"
+ 
+ [[ "$NP" = "yes" ]] || [[ "$PP" = "yes" ]] && \
+  prv_val="$(awk '{print $1}' /tmp/crr_ep_number.txt | sed 's/[[:space:]]//g' )" && \
+  np_val=$(($prv_val+1)) && \
+  pp_val=$(($prv_val-1))
 
-  SEL_CHAPTER_LIST="$(cat "$TMP_ANIME_EP" | $MENU )"
+  [[ "$NP" != "yes" ]] && [[ "$PP" != "yes" ]] && SEL_CHAPTER_LIST="$(cat "$TMP_ANIME_EP" | $MENU )"
+
+  [[ "$NP" = "yes" ]] && SEL_CHAPTER_LIST="$np_val"
+  [[ "$PP" = "yes" ]] &&  SEL_CHAPTER_LIST="$pp_val"
+
+  echo "$SEL_CHAPTER_LIST" > /tmp/crr_ep_number.txt
 
   [[ -z "$SEL_CHAPTER_LIST" ]] && $REMOVAL > /dev/null 2>&1 && exit 
 
@@ -132,6 +151,7 @@ scrape (){
       {
 	echo "$F_TITLE EP-$SELECTED_CHAPTER_LIST Download Complete! : $DOWNLAOD_DIR/$F_TITLE"
       }
+
   
       LINK_360="$(cat $TMP_ANIMELINKS | head -n1 | tail -n1 )"
       LINK_420="$(cat $TMP_ANIMELINKS | head -n2 | tail -n1)"
@@ -143,50 +163,50 @@ scrape (){
   case $PROMPTO in
     1)
       mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" & disown
-      RM
-      exit;;
+      ;;
     2)
       mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" & disown 
-      RM
-      exit;;
+      ;;
     3)
       mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" & disown 
-      RM
-      exit;;
+      ;;
     4)
       mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" & disown 
-      RM
-      exit;;
+      ;;
     5)
       DIR_CHECK
       curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
-      RM
-      exit;;
+      ;;
     6)
       DIR_CHECK
       curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
-      RM
-      exit;;
+      ;;
     7)
       DIR_CHECK
       curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
-      RM
-      exit;;
+      ;;
     8)
       DIR_CHECK
       curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
-      RM
-      exit;;
+      ;;
     *)
       RM
       exit;;
   esac
 
-exit
+	opts="$(echo -e "Next Episode $(($SELECTED_CHAPTER_LIST+1))\nPrevious Episode $(($SELECTED_CHAPTER_LIST-1))\nSearch Anime" | $MENU | awk '{print $1}')"
+	[[ -z "$opts" ]] && RM && exit
+	[[ "$opts" = "Next" ]] && NP="yes" && PP="" && scrape
+	[[ "$opts" = "Previous" ]] && PP="yes" && NP="" && scrape
+	[[ "$opts" = "Search" ]] && [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && \
+	  query="$(rofi -show -drun -theme dmenu -p "Search ")" && scrape  
+	[[ "$opts" = "Search" ]] && [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && \
+	  read -r -p "Search " query && scrape
+
 
 }
 

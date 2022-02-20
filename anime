@@ -162,16 +162,16 @@ scrape (){
 
   case $PROMPTO in
     1)
-      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" & disown
+      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" & disown
       ;;
     2)
-      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" & disown 
+      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" & disown 
       ;;
     3)
-      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" & disown 
+      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" & disown 
       ;;
     4)
-      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" & disown 
+      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" & disown 
       ;;
     5)
       DIR_CHECK

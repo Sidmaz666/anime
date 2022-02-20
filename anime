@@ -138,44 +138,46 @@ scrape (){
       LINK_720="$(cat $TMP_ANIMELINKS | head -n3 | tail -n1)"
       LINK_1080="$(cat $TMP_ANIMELINKS | head -n4 | tail -n1)"
 
+      referrer_link="https://gogoplay.io/streaming.php?$id=$VIDEO_ID"
+
   case $PROMPTO in
     1)
-      mpv --really-quiet "$LINK_360" & disown
+      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" & disown
       RM
       exit;;
     2)
-      mpv --really-quiet "$LINK_420" & disown 
+      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" & disown 
       RM
       exit;;
     3)
-      mpv --really-quiet "$LINK_720" & disown 
+      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" & disown 
       RM
       exit;;
     4)
-      mpv --really-quiet "$LINK_1080" & disown 
+      mpv --really-quiet --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" & disown 
       RM
       exit;;
     5)
       DIR_CHECK
-      curl "$LINK_360" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
       RM
       exit;;
     6)
       DIR_CHECK
-      curl "$LINK_420" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
       RM
       exit;;
     7)
       DIR_CHECK
-      curl "$LINK_720" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
       RM
       exit;;
     8)
       DIR_CHECK
-      curl "$LINK_1080" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
+      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
       OKAY
       RM
       exit;;

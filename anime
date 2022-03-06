@@ -121,7 +121,7 @@ scrape (){
   -H 'accept-language: en-US,en;q=0.9' \
   --compressed   | sed -nE 's/.*data-video="([^"]*)".*/\1/p ' | sed 's/^/https:/g' | head -n1 )"
 
-	# Code Refered From From ani-cli by pystardust
+	# Code Refered From  ani-cli by pystardust
 
 	secret_key='3235373136353338353232393338333936313634363632323738383333323838'
 	iv='31323835363732393835323338333933'

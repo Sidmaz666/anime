@@ -8,7 +8,7 @@ A CLI Tool to Search, Stream & Download Anime from Terminal either using Rofi or
 ## Dependencies
 
 1. curl (for scrapping)
-2. jq (for decrypting url)
+2. jq , openssl (for decrypting url)
 3. sed (for regex)
 4. grep (for regex)
 5. fzf (for menu)

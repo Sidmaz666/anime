@@ -109,27 +109,38 @@ scrape (){
 
   SELECTED_CHAPTER_LIST="$(echo -e "$SEL_CHAPTER_LIST" | awk '{print $1}' )"
 
-  CHAPTER_URL="$(echo -e "$CHAPTER_LINK" | head -n$SELECTED_CHAPTER_LIST | tail -n1)"
+  CHAPTER_URL="$(echo -e "$CHAPTER_LINK" | head -n$SELECTED_CHAPTER_LIST | tail -n1 | \
+    sed 's/\/view\///g')"
+  
 
-  G_GOGO_URL="$(curl -s "$URL$CHAPTER_URL" \
+  G_GOGO_URL="$( curl -s "https://gogoanime.fi/$CHAPTER_URL" \
   -H 'cache-control: max-age=0' \
   -H 'upgrade-insecure-requests: 1' \
   -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36' \
   -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
-  -H 'referer: https://animebuddy.com/' \
   -H 'accept-language: en-US,en;q=0.9' \
-  --compressed |  grep '<iframe src="//g' | sed -n 's/.*src="\([^"]*\).*/\1/p' | sed '/^[[:space:]]*$/d' )"
+  --compressed   | sed -nE 's/.*data-video="([^"]*)".*/\1/p ' | sed 's/^/https:/g' | head -n1 )"
 
-  CDN_URL="https://gogoplay.io/encrypt-ajax.php"
+	# Code Refered From From ani-cli by pystardust
 
-  VIDEO_ID="$(echo "$G_GOGO_URL" | cut -d\? -f2 | cut -d\& -f1 | sed 's/id=//g' )"
+	secret_key='3235373136353338353232393338333936313634363632323738383333323838'
+	iv='31323835363732393835323338333933'
+	
+	ajax_url="https://gogoplay4.com/encrypt-ajax.php"
 
-  KEY='3235373436353338353932393338333936373634363632383739383333323838'
-  IV='34323036393133333738303038313335'
-   
-  DECRYPT_ID="$(echo "$VIDEO_ID" | openssl enc -aes256  -K "$KEY" -iv "$IV" -a)"
+	crypto_data=$(curl -s "$G_GOGO_URL" | sed -nE 's/.*data-value="([^"]*)".*/\1/p')
+	
+	id=$(printf '%s' "$crypto_data" | base64 -d | openssl enc -d -aes256 -K "$secret_key" -iv "$iv" | cut -d '&' -f1)
 
-  curl -s -H 'x-requested-with:XMLHttpRequest' "$CDN_URL" -d "id=$DECRYPT_ID" -d "time=69420691337800813569" | jq -r '.source[].file' > $TMP_ANIMELINKS
+	#encrypt and create the final ajax
+	ajax=$(printf "%s\010\016\003\010\t\003\004\t" "$id" | openssl enc -aes256 -K "$secret_key" -iv "$iv" -a)
+
+	#send request and get the data(most lamest way)
+	data=$(curl -s -H "X-Requested-With:XMLHttpRequest" "$ajax_url" -d "id=$ajax"  |  jq '.data' | sed -e 's/"//g' -e 's/\\//g') 
+
+	#decrypt the data to get final links
+	printf '%s' "$data" | base64 -d | openssl enc -d -aes256 -K "$secret_key" -iv "$iv" | sed -e 's/\].*/\]/' -e 's/\\//g' |
+		grep -Eo 'https:\/\/[-a-zA-Z0-9@:%._\+~#=][a-zA-Z0-9][-a-zA-Z0-9@:%_\+.~#?&\/\/=]*' > $TMP_ANIMELINKS
 
  [[ -z "$(cat $TMP_ANIMELINKS)" ]] && echo "Unable To get the Link! Try Again!" && exit
 

@@ -1,4 +1,7 @@
+# Script Broken
+
 # Anime
+
 A CLI Tool to Search, Stream & Download Anime from Terminal either using Rofi or FZF(default). The script scrapes Anime from <a href="https://www.anistream.fun"> Anistream </a>.
 
 ## Showcasae

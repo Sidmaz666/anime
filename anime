@@ -1,226 +1,194 @@
 #!/bin/bash
 
 PAGE=1
-FZF="fzf --cycle --no-info --layout=reverse"
+[[ $PAGE < 0 ]] && PAGE=1
+FZF="fzf --cycle --no-info --layout=reverse --no-preview"
 ROFI="rofi -dmenu -theme gruvbox-dark -i -matching fuzzy"
-
 DOWNLAOD_DIR="$HOME/Documents/Anime"
-
 LOGFILE="$HOME/.cache/anime_watch_history"
+[[ -z "$LOGFILE" ]] && LW="No Watch History!" || LW="$(cat $LOGFILE)"
 
+EP=1
 NP=""
 PP=""
 
-[[ -z "$LOGFILE" ]] && LW="" || LW="$(cat $LOGFILE)"
-
 scrape (){
 
-  TMP="/tmp/anime.txt"
-
-  TMP_ANIMELINKS="/tmp/animelinks.txt"
-
-  TMP_ANIMETITLES="/tmp/animetitles.txt"
-
-  TMP_ANIME_EP="/tmp/animechapter.txt"
-
-  TMP_CRR_EP="/tmp/current_episode.txt"
-
-  REMOVAL="rm $TMP $TMP_ANIMELINKS $TMP_ANIMETITLES $TMP_ANIME_EP $TMP_CRR_EP /tmp/crr_ep_number.txt"
-
   S_QUERY="$(echo "$query" | sed 's/[[:space:]]/+/g')"
+
+  URL="https://aniswim-api.herokuapp.com/search?q=$S_QUERY&page=$PAGE" 
+  [[ $S_QUERY = "-l"* ]] && URL="https://aniswim-api.herokuapp.com/latest&page=$PAGE"  
+  [[ $S_QUERY = "-r"* ]] &&  URL="https://aniswim-api.herokuapp.com/recent&page=$PAGE"  
+
+  S_QUERY="$(echo "$S_QUERY" | sed 's/-l//g' | sed 's/-r//g'  | sed 's/[[:space:]]/+/g')"
+
+  [[ $PAGE = 1 ]] && SPG="\n0 Next Page" || SPG="\n0 Next_Page\n-1 Previous Page"
+
+
+  [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime(Page:$PAGE/$(echo "Search:$S_QUERY" | sed 's/+/-/g'))"
+
+  [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime(Page:$PAGE/$(echo "Search:$S_QUERY" | sed 's/+/-/g')) --header-first --no-preview"
+
+
+  [[ $NP = "yes" ]] || [[ $PP = "yes" ]] && select_anime=$select_anime || \
+select_anime=$(echo -ne "$(curl -s $URL | jq .'[] | .title' | sed 's/"//g' | cat -n | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' )$SPG " | $MENU |  awk '{print $1}')
+
+
+  [[ -z $select_anime ]] && echo "No Anime Selected!" && exit 
+  [[ $select_anime == 0 ]] && PAGE=$(($PAGE+1)) && scrape
+  [[ $select_anime == -1 ]] && PAGE=$(($PAGE-1)) && scrape
   
-  URL="https://anistream.fun"
+  select_animeId=$(curl -s $URL | jq .'[] | .animeID' |  sed 's/"//g' | head -n$select_anime | tail -n1  )
+
+
+  [[ $NP = "yes" ]] && EP=$(($EP+1))
+  [[ $PP = "yes" ]] && EP=$(($EP-1))
+
+  get_anime_data_raw=$(curl -s "https://aniswim-api.herokuapp.com/anime?id=$select_animeId&ep=$EP")
+
+  total_ep=$(echo $get_anime_data_raw | jq .'total_ep' | sed 's/"//g')
+  title=$(echo $get_anime_data_raw | jq .'title' | sed 's/"//g' | sed 's/[[:space:]]/-/g')
+  anime_type=$(echo $get_anime_data_raw | jq .'anime_type' | sed 's/"//g' | sed 's/[[:space:]]/-/g')
+
+  ep_list=""
+
+  for ((i=1; i<=$total_ep; i++))
+  do
+    ep_list+=$(echo -ne "$title-Episode-$i "  )
+  done
+
+  [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime(Title:$title/Total_Episode:$total_ep/$anime_type)"
+  [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime(Title:$title/Total_Episode:$total_ep/$anime_type) --header-first --no-preview"
   
-  SEARCH_URL="results?q="
+  if [[ $NP != "yes" ]] && [[ $PP != "yes" ]]; then
+  select_episode=$( echo $ep_list | sed 's/[[:space:]]/\n/g' | cat -n | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | $MENU | awk '{print $1}')
+  fi
   
-  curl -s "$URL/$SEARCH_URL$S_QUERY&p=$PAGE" \
-  -H 'cache-control: max-age=0' \
-  -H 'upgrade-insecure-requests: 1' \
-  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36' \
-  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
-  -H 'referer: https://anistream.fun/' \
-  -H 'accept-language: en-US,en;q=0.9' \
-  --compressed -o $TMP
-
-  LINKS="$( grep -A 1 '<h6 class="card-title' $TMP | sed -n 's/.*href="\([^"]*\).*/\1/p' > $TMP_ANIMELINKS )"
-
-  TOTAL_LINKS="$( wc -l $TMP_ANIMELINKS | awk '{print $1}' )"
-
-   TITLES="$(grep -A 1 '<h6 class="card-title.*' $TMP | sed 's/--//g' | sed -e 's/<[^>]*>//g' | sed 's/^ [ \t]*//g' | sed '/^[[:space:]]*$/d' | cat -n | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | sed "s/&#39;s/'s/g"  > $TMP_ANIMETITLES )"
-
-   SHOW_TITLES="$(cat $TMP_ANIMETITLES)"
-
-   [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && [[ -z "$SHOW_TITLES" ]] && notify-send "Manga" "No Result Found! Or the Server is Down! Try Again Later!"
-   [[ -z "$SHOW_TITLES" ]] && echo "No Result Found! Or the Server is Down! Try Again Later!" && $REMOVAL > /dev/null 2>&1 && exit 0
-     
-
-   [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime($PAGE/$TOTAL_LINKS)"
-
-   [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime($PAGE/$TOTAL_LINKS) --header-first --no-preview"
-
-   [[ "$NP" != "yes" ]] && [[ "$PP" != "yes" ]] && ANIME_TITLE="$( echo -e "$SHOW_TITLES\n0 Go to Next Page($PAGE/$TOTAL_LINKS)"| $MENU )"
-
-   [[ "$NP" = "yes" ]] || [[ "$PP" = "yes" ]] && [[ ! -z "$(cat $TMP_CRR_EP)" ]] && ANIME_SEL="$(cat $TMP_CRR_EP)" || \
-   ANIME_SEL="$( echo -e "$ANIME_TITLE"  | awk '{print $1}')"
-
-   echo "$ANIME_SEL" > $TMP_CRR_EP 
-
-   [[ -z "$ANIME_SEL" ]] && $REMOVAL > /dev/null 2>&1 && exit
-   [[ -z "$ANIME_SEL" ]] && exit   
-
-   ANIME_SEL_LINK="$( head -n$ANIME_SEL $TMP_ANIMELINKS | tail -n1  )" 
+  [[ -z $select_episode ]] && echo "No Episode Selected!" && exit
    
-   [[ "$ANIME_SEL" = 0 ]] && PAGE="$(($PAGE+1))" && scrape
+ [[ ! -z $select_episode ]] && [[ $select_episode > 1 ]] && EP=$select_episode && get_anime_data_raw=$(curl -s "https://aniswim-api.herokuapp.com/anime?id=$select_animeId&ep=$EP")
 
-  curl -s "$URL$ANIME_SEL_LINK" \
-  -H 'cache-control: max-age=0' \
-  -H 'upgrade-insecure-requests: 1' \
-  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36' \
-  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
-  -H 'referer: https://animestream.fun/' \
-  -H 'accept-language: en-US,en;q=0.9' \
-  --compressed -o $TMP
+  video_link_default=$(echo $get_anime_data_raw | jq .'video_links | .animixplay_link' )
+  
+  fembed_id=$(echo $get_anime_data_raw | jq .'video_links | .fembed_id ' | sed 's/"//g')
 
-  F_TITLE="$(echo "$ANIME_TITLE" | sed -e 's/^[0-9]//g' -e 's/^[[:space:]]//g' -e 's/[[:space:]]/-/g')"
+  check_fembed=$(curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/100.0" -s -X POST "https://fembed-hd.com/api/source/$fembed_id" -H "x-requested-with:XMLHttpRequest" |  jq .'success' )
 
-  CHAPTER_LIST="$( grep -A 1 '<a href="/view' $TMP | sed 's/--//g' | sed -e 's/<[^>]*>//g' | sed 's/^ [ \t]*//g' | sed '/^[[:space:]]*$/d' | sed "s/^/$F_TITLE - Episode Number /g" | cat -n | sed 's/^ [ \t]*//g'    > $TMP_ANIME_EP)"
+  [[ $check_fembed != false ]] && fembed_link=$(curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/100.0" -s -X POST "https://fembed-hd.com/api/source/$fembed_id" -H "x-requested-with:XMLHttpRequest" | jq .'data' )
 
-  TOTAL_CHP="$(wc -l $TMP_ANIME_EP | awk '{print $1}')"
+  [[ ! -z $fembed_link ]] &&  video_link_=$(echo $fembed_link | jq .'[] | .file ') && \
+    video_labels=$(echo $fembed_link | jq .'[] | .label ' | cat -n  | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | sed 's/"//g' ) && \
+    LINK1=$(echo $video_link_ | sed 's/[[:space:]]/\n/g' | sed 's/"//g' | head -n1 | tail -n1) && \
+    LINK2=$(echo $video_link_ | sed 's/[[:space:]]/\n/g' | sed 's/"//g' | head -n2 | tail -n1) && \
+    LINK3=$(echo $video_link_ | sed 's/[[:space:]]/\n/g' | sed 's/"//g' | head -n3 | tail -n1)
 
-   [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="" && MENU="$ROFI -p Anime($F_TITLE/$TOTAL_CHP)"
 
-   [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime($F_TITLE/$TOTAL_CHP) --no-preview --header-first"
 
-  CHAPTER_LINK="$(sed -e '1,/<div id="epslistplace/d' $TMP | sed '/<script>/{s/\(.*<script>\).*/\1/;q}' | grep -o '<a .*' | sed -n 's/.*href="\([^"]*\).*/\1/p')"
+if [[ $check_fembed = true ]]; then
+[[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime(Title:$title/Episode:$EP/Select_Quality)"
+[[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime(Title:$title/Episode:$EP/Select_Quality) --header-first --no-preview"
+select_quality=$(echo -ne "$video_labels\n4 Default" | $MENU | awk '{print $1}')  
+action=$(echo -ne "Play\nDownload" | $MENU | awk '{print $1}')
+else 
+[[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime(Title:$title/Episode:$EP/Selected_Default_Quality)"
+[[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime(Title:$title/Episode:$EP/Selected_Default_Quality) --header-first --no-preview"
+select_quality=4 
+action=$(echo -ne "Play\nDownload" | $MENU | awk '{print $1}')
+fi
  
- [[ "$NP" = "yes" ]] || [[ "$PP" = "yes" ]] && \
-  prv_val="$(awk '{print $1}' /tmp/crr_ep_number.txt | sed 's/[[:space:]]//g' )" && \
-  np_val=$(($prv_val+1)) && \
-  pp_val=$(($prv_val-1))
+[[ -z $action ]] && exit
 
-  [[ "$NP" != "yes" ]] && [[ "$PP" != "yes" ]] && SEL_CHAPTER_LIST="$(cat "$TMP_ANIME_EP" | $MENU )"
+dir_check(){
+[[ ! -d "$DOWNLAOD_DIR/$title" ]] && mkdir -p $DOWNLAOD_DIR/$(echo $title | sed 's/[[:space:]]/-/g')
+echo "Downloading $title, Episode $EP in $DOWNLAOD_DIR/$(echo $title | sed 's/[[:space:]]/-/g')"
+}
 
-  [[ "$NP" = "yes" ]] && SEL_CHAPTER_LIST="$np_val"
-  [[ "$PP" = "yes" ]] &&  SEL_CHAPTER_LIST="$pp_val"
+stream_this (){
+  mpv $(echo $1 | sed 's/"//g') --referrer="$2"  --really-quiet --force-media-title="$title Episode-$EP" & disown
+}
 
-  echo "$SEL_CHAPTER_LIST" > /tmp/crr_ep_number.txt
+download_this(){
+    ffmpeg -loglevel error -stats -referer "$2" -i "$(echo $1 | sed 's/"//g')" -c copy "$DOWNLAOD_DIR/$(echo $title | sed 's/[[:space:]]/-/g')/$(echo $title | sed 's/[[:space:]]/-/g')-episode-$EP.mp4" 
+}
 
-  [[ -z "$SEL_CHAPTER_LIST" ]] && $REMOVAL > /dev/null 2>&1 && exit 
+log_this (){
+  echo "$select_animeId-episode-$EP" > $LOGFILE
+}
 
-  SELECTED_CHAPTER_LIST="$(echo -e "$SEL_CHAPTER_LIST" | awk '{print $1}' )"
+    case $select_quality in
+      1)
+	if [[ $action = "Play" ]];
+	then
+	  stream_this "$LINK1" "https://fembed-hd.com/v/$fembed_id"
+	  log_this
+	else
+	dir_check
+	download_this "$LINK1" "https://fembed-hd.com/v/$fembed_id"
+	fi
+	;;
+      2)
+	if [[ $action = "Play" ]];
+	then
+	stream_this "$LINK2" "https://fembed-hd.com/v/$fembed_id"
+	log_this
+	else
+	dir_check
+	download_this "$LINK2" "https://fembed-hd.com/v/$fembed_id"
+	fi
+	;;
+      3)
+	if [[ $action = "Play" ]];
+	then
+	stream_this "$LINK3" "https://fembed-hd.com/v/$fembed_id"
+	log_this
+	else
+	dir_check
+	download_this "$LINK3" "https://fembed-hd.com/v/$fembed_id"
+	fi
+	;;
+      4)
+	if [[ $action = "Play" ]];
+	then
+	stream_this "$video_link_default" "https://animixplay.to"
+	log_this
+	else
+	dir_check
+	download_this "$video_link_default" "https://animixplay.to"
+	fi
+	;;
+      *)
+	  exit
+	;;
+    esac
 
-  CHAPTER_URL="$(echo -e "$CHAPTER_LINK" | head -n$SELECTED_CHAPTER_LIST | tail -n1 | \
-    sed 's/\/view\///g')"
+    opt_text="Next Episode $(($EP+1))\nPrevious Episode $(($EP-1))\nSearch Anime\nExit"
 
+    x=$(($EP-1))
+    y=$(($EP+1))
 
-  G_GOGO_URL="$( curl -s "https://anistream.fun/view/$CHAPTER_URL" \
-  -H 'cache-control: max-age=0' \
-  -H 'upgrade-insecure-requests: 1' \
-  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36' \
-  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
-  -H 'accept-language: en-US,en;q=0.9' \
-  --compressed |  sed -nE 's_^[[:space:]]*<iframe src="([^"]*)".*_\1_p' | sed 's/^/https:/g' )"
+    [[ $x = 0 ]] && opt_text="Next Episode $(($EP+1))\nSearch Anime\nExit"
+    [[ $y = $total_ep ]] && opt_text="Previous Episode $(($EP-1))\nSearch Anime\nExit"
 
-
-  
-
-
-	# Code Refered From  ani-cli by pystardust
-
-	ajax_url="https://goload.pro/encrypt-ajax.php"
-	id=$(printf "%s" "$G_GOGO_URL" | grep -o "id.*" | sed -e 's/id\=//g' -e 's/&.*$//g')
-	resp=$(curl -s "$G_GOGO_URL")
-	secret_key=$(printf "%s" "$resp" | sed -nE 's/.*class="container-(.*)">/\1/p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
-	iv=$(printf "%s" "$resp" | sed -nE 's/.*class="wrapper container-(.*)">/\1/p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
-	second_key=$(printf "%s" "$resp" | sed -nE 's/.*class=".*videocontent-(.*)">/\1/p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
-	token=$(printf "%s" "$resp" | sed -nE 's/.*data-value="(.*)">.*/\1/p' | base64 -d | openssl enc -d -aes256 -K "$secret_key" -iv "$iv" | sed -nE 's/.*&(token.*)/\1/p')
-	ajax=$(printf '%s' "$id" | openssl enc -e -aes256 -K "$secret_key" -iv "$iv" | base64)
-	data=$(curl -s -H "X-Requested-With:XMLHttpRequest" "${ajax_url}?id=${ajax}&alias=${id}&${token}" | sed -e 's/{"data":"//' -e 's/"}/\n/' -e 's/\\//g')
-	printf '%s' "$data" | base64 -d | openssl enc -d -aes256 -K "$second_key" -iv "$iv" | sed -e 's/\].*/\]/' -e 's/\\//g' |
-		grep -Eo 'https:\/\/[-a-zA-Z0-9@:%._\+~#=][a-zA-Z0-9][-a-zA-Z0-9@:%_\+.~#?&\/\/=]*' > $TMP_ANIMELINKS
-
-
- [[ -z "$(cat $TMP_ANIMELINKS)" ]] && echo "Unable To get the Link! Try Again!" && exit
-
-  PROMPTO="$(echo -e "1 Open: 360p \n2 Open: 420p\n3 Open: 720p\n4 Open: 1080p\n5 Download 360p\n6 Download 420p\n7 Download 720p\n8 Download 1080p" | $MENU | awk '{print $1}')"
-
-  DIR_CHECK()
-      {
-	[[ ! -d "$DOWNLAOD_DIR/$F_TITLE" ]] && mkdir -p $DOWNLAOD_DIR/$F_TITLE
- 	echo "Downloading $F_TITLE, Episode $SELECTED_CHAPTER_LIST in $DOWNLAOD_DIR"
-      }
-
-      RM()
-      {
-	echo "$F_TITLE Episode $SELECTED_CHAPTER_LIST" > $LOGFILE
-	$REMOVAL > /dev/null 2>&1
-      }
-
-      OKAY()
-      {
-	echo "$F_TITLE EP-$SELECTED_CHAPTER_LIST Download Complete! : $DOWNLAOD_DIR/$F_TITLE"
-      }
-
-  
-      LINK_360="$(cat $TMP_ANIMELINKS | head -n1 | tail -n1 )"
-      LINK_420="$(cat $TMP_ANIMELINKS | head -n2 | tail -n1)"
-      LINK_720="$(cat $TMP_ANIMELINKS | head -n3 | tail -n1)"
-      LINK_1080="$(cat $TMP_ANIMELINKS | head -n4 | tail -n1)"
-
-      referrer_link="https://gogoplay.io/streaming.php?$id=$VIDEO_ID"
-
-  case $PROMPTO in
-    1)
-      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" & disown
-      ;;
-    2)
-      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" & disown 
-      ;;
-    3)
-      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" & disown 
-      ;;
-    4)
-      mpv --really-quiet --force-media-title="$F_TITLE Episode-$SELECTED_CHAPTER_LIST" --referrer="$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" & disown 
-      ;;
-    5)
-      DIR_CHECK
-      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_360" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
-      OKAY
-      ;;
-    6)
-      DIR_CHECK
-      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_420" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
-      OKAY
-      ;;
-    7)
-      DIR_CHECK
-      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_720" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
-      OKAY
-      ;;
-    8)
-      DIR_CHECK
-      curl -H "referer:$referrer_link&title=$(echo "$F_TITLE" | sed 's/-/+/g')+Episode+$SELECTED_CHAPTER_LIST" "$LINK_1080" --output $DOWNLAOD_DIR/$F_TITLE/EP-$SELECTED_CHAPTER_LIST.mp4
-      OKAY
-      ;;
-    *)
-      RM
-      exit;;
-  esac
-
-	opts="$(echo -e "Next Episode $(($SELECTED_CHAPTER_LIST+1))\nPrevious Episode $(($SELECTED_CHAPTER_LIST-1))\nSearch Anime" | $MENU | awk '{print $1}')"
-	[[ -z "$opts" ]] && RM && exit
+    opts="$(echo -ne "$opt_text" | $MENU | awk '{print $1}')"
+	[[ -z "$opts" ]] && exit
+	[[ "$opts" = "Exit" ]] && exit
 	[[ "$opts" = "Next" ]] && NP="yes" && PP="" && scrape
 	[[ "$opts" = "Previous" ]] && PP="yes" && NP="" && scrape
 	[[ "$opts" = "Search" ]] && [[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && \
-	  query="$(rofi -show -drun -theme dmenu -p "Search ")" && scrape  
+	  query="$(rofi -show -drun -theme dmenu -p "Search ")" && scrape
 	[[ "$opts" = "Search" ]] && [[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && \
 	  read -r -p "Search " query && scrape
-
 
 }
 
 [[ -z "$@" ]] && read -r -p "Last Seen: $LW
-Search >  " query && MENU="$FZF" scrape || \
-  [[ "$1" = "--rofi" ]] && query="$(rofi -dmenu -theme dmenu -p "Last Seen : $LW | Search ")" && MENU="$ROFI" && scrape || \
-  query="$@" && MENU="$FZF" && scrape 
+Search >  " query && \
+  MENU="$FZF" scrape && exit || \
+  [[ "$1" = "--rofi" ]] && \
+  query="$(rofi -dmenu -theme dmenu -p "Last Seen : $LW | Search ")" && \
+  MENU="$ROFI" && \
+  scrape && exit || \
+  query="$@" && \
+  MENU="$FZF" && \
+  scrape && exit
 

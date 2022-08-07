@@ -163,11 +163,11 @@ log_this (){
 
     opt_text="Next Episode $(($EP+1))\nPrevious Episode $(($EP-1))\nSearch Anime\nExit"
 
-    x=$(($EP-1))
     y=$(($EP+1))
 
-    [[ $x = 0 ]] && opt_text="Next Episode $(($EP+1))\nSearch Anime\nExit"
-    [[ $y > $total_ep ]] && opt_text="Previous Episode $(($EP-1))\nSearch Anime\nExit"
+    [[ $y > $total_ep ]] && opt_text="Previous Episode $(($EP-1))\nSearch Anime\nExit" 
+    [[ $select_episode = 1 ]] && opt_text="Next Episode $(($EP+1))\nSearch Anime\nExit"
+
 
     opts="$(echo -ne "$opt_text" | $MENU | awk '{print $1}')"
 	[[ -z "$opts" ]] && exit

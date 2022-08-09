@@ -52,7 +52,7 @@ select_anime=$(echo -ne "$(curl -s $URL | jq .'[] | .title' | sed 's/"//g' | cat
 
   ep_list=""
 
-  for ((i=1; i<=$total_ep; i++))
+  for ((i=1; i<$total_ep+1; i++))
   do
     ep_list+=$(echo -ne "$title-Episode-$i "  )
   done

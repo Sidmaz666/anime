@@ -2,8 +2,8 @@
 
 PAGE=1
 [[ $PAGE < 0 ]] && PAGE=1
-FZF="fzf --cycle --no-info --layout=reverse --no-preview"
-ROFI="rofi -dmenu -theme gruvbox-dark -i -matching fuzzy"
+FZF="fzf --cycle --no-info --layout=reverse --no-preview "
+ROFI="rofi -dmenu -theme gruvbox-dark -i -matching fuzzy "
 DOWNLAOD_DIR="$HOME/Documents/Anime"
 LOGFILE="$HOME/.cache/anime_watch_history"
 [[ -z "$LOGFILE" ]] && LW="No Watch History!" || LW="$(cat $LOGFILE)"
@@ -52,7 +52,8 @@ select_anime=$(echo -ne "$(curl -s $URL | jq .'[] | .title' | sed 's/"//g' | cat
 
   ep_list=""
 
-  for ((i=1; i<$total_ep+1; i++))
+  
+  for i in $(seq 1 $total_ep)
   do
     ep_list+=$(echo -ne "$title-Episode-$i "  )
   done
@@ -68,35 +69,36 @@ select_anime=$(echo -ne "$(curl -s $URL | jq .'[] | .title' | sed 's/"//g' | cat
    
  [[ ! -z $select_episode ]] && [[ $select_episode > 1 ]] && EP=$select_episode && get_anime_data_raw=$(curl -s "https://aniswim-api.herokuapp.com/anime?id=$select_animeId&ep=$EP")
 
-  video_link_default=$(echo $get_anime_data_raw | jq .'video_links | .animixplay_link' )
+    video_link_default=$(echo $get_anime_data_raw | jq .'video_links | .main_link' )
+
+    [[ -z $video_link_default ]] && echo "Video Link Unavilable. Try Again!" && exit
   
-  fembed_id=$(echo $get_anime_data_raw | jq .'video_links | .fembed_id ' | sed 's/"//g')
+    video_link_=$(echo $get_anime_data_raw | jq '.video_links | .available_links | .[] | .url + " " + .quality ' | sed 's/[[:space:]]/"LABEL="/g' | sed 's/LABEL.*//g' ) 
+    video_labels=$(echo $get_anime_data_raw | jq '.video_links | .available_links | .[] | .url + " " + .quality ' | sed 's/[[:space:]]/"LABEL="/g' |sed 's/.*LABEL=//g' | cat -n  | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | sed 's/"//g' ) 
 
-  check_fembed=$(curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/100.0" -s -X POST "https://fembed-hd.com/api/source/$fembed_id" -H "x-requested-with:XMLHttpRequest" |  jq .'success' )
+ask_quality=$(echo -ne "$video_labels\n0 Default" | $MENU )
+select_quality=$(echo $ask_quality | awk '{print $1}')  
+selected_quality=$(echo $ask_quality | awk '{print $2}')  
 
-  [[ $check_fembed != false ]] && fembed_link=$(curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/100.0" -s -X POST "https://fembed-hd.com/api/source/$fembed_id" -H "x-requested-with:XMLHttpRequest" | jq .'data' )
-
-  [[ ! -z $fembed_link ]] &&  video_link_=$(echo $fembed_link | jq .'[] | .file ') && \
-    video_labels=$(echo $fembed_link | jq .'[] | .label ' | cat -n  | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | sed 's/"//g' ) && \
-    LINK1=$(echo $video_link_ | sed 's/[[:space:]]/\n/g' | sed 's/"//g' | head -n1 | tail -n1) && \
-    LINK2=$(echo $video_link_ | sed 's/[[:space:]]/\n/g' | sed 's/"//g' | head -n2 | tail -n1) && \
-    LINK3=$(echo $video_link_ | sed 's/[[:space:]]/\n/g' | sed 's/"//g' | head -n3 | tail -n1)
+[[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime(Title:$title/Episode:$EP/Selected_Quality:$selected_quality)"
+[[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime(Title:$title/Episode:$EP/Selected_Quality:$selected_quality) --header-first --no-preview"
 
 
+[[ -z $select_quality ]] && exit
 
-if [[ $check_fembed = true ]]; then
-[[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime(Title:$title/Episode:$EP/Select_Quality)"
-[[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime(Title:$title/Episode:$EP/Select_Quality) --header-first --no-preview"
-select_quality=$(echo -ne "$video_labels\n4 Default" | $MENU | awk '{print $1}')  
+LINK=$(echo $video_link_ | sed 's/[[:space:]]/\n/g' | head -n$select_quality | tail -n1)
+
+case $select_quality in 
+  0)
+    LINK=$(echo $video_link_default)
+    ;;
+esac
+
 action=$(echo -ne "Play\nDownload" | $MENU | awk '{print $1}')
-else 
-[[ "$(echo "$MENU" | awk '{print $1}')" = "rofi" ]] && MENU="$ROFI -p Anime(Title:$title/Episode:$EP/Selected_Default_Quality)"
-[[ "$(echo "$MENU" | awk '{print $1}')" = "fzf" ]] && MENU="$FZF --header=Anime(Title:$title/Episode:$EP/Selected_Default_Quality) --header-first --no-preview"
-select_quality=4 
-action=$(echo -ne "Play\nDownload" | $MENU | awk '{print $1}')
-fi
  
 [[ -z $action ]] && exit
+
+referer=$(echo $get_anime_data_raw | jq '.iframeLink' | sed 's/"//g')
 
 dir_check(){
 [[ ! -d "$DOWNLAOD_DIR/$title" ]] && mkdir -p $DOWNLAOD_DIR/$(echo $title | sed 's/[[:space:]]/-/g')
@@ -115,57 +117,19 @@ log_this (){
   echo "$select_animeId-episode-$EP" > $LOGFILE
 }
 
-    case $select_quality in
-      1)
 	if [[ $action = "Play" ]];
 	then
-	  stream_this "$LINK1" "https://fembed-hd.com/v/$fembed_id"
+	  stream_this "$LINK" "$referer"
 	  log_this
 	else
 	dir_check
-	download_this "$LINK1" "https://fembed-hd.com/v/$fembed_id"
+	download_this "$LINK" "$referer"
 	fi
-	;;
-      2)
-	if [[ $action = "Play" ]];
-	then
-	stream_this "$LINK2" "https://fembed-hd.com/v/$fembed_id"
-	log_this
-	else
-	dir_check
-	download_this "$LINK2" "https://fembed-hd.com/v/$fembed_id"
-	fi
-	;;
-      3)
-	if [[ $action = "Play" ]];
-	then
-	stream_this "$LINK3" "https://fembed-hd.com/v/$fembed_id"
-	log_this
-	else
-	dir_check
-	download_this "$LINK3" "https://fembed-hd.com/v/$fembed_id"
-	fi
-	;;
-      4)
-	if [[ $action = "Play" ]];
-	then
-	stream_this "$video_link_default" "https://animixplay.to"
-	log_this
-	else
-	dir_check
-	download_this "$video_link_default" "https://animixplay.to"
-	fi
-	;;
-      *)
-	  exit
-	;;
-    esac
 
     opt_text="Next Episode $(($EP+1))\nPrevious Episode $(($EP-1))\nSearch Anime\nExit"
 
-    y=$(($EP+1))
 
-    [[ $y > $total_ep ]] && opt_text="Previous Episode $(($EP-1))\nSearch Anime\nExit" 
+    [[ $EP = $total_ep ]] && opt_text="Previous Episode $(($EP-1))\nSearch Anime\nExit" 
     [[ $select_episode = 1 ]] && opt_text="Next Episode $(($EP+1))\nSearch Anime\nExit"
 
 

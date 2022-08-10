@@ -1,5 +1,5 @@
 # Anime
-A CLI Tool to Search, Stream & Download Anime from Terminal either using Rofi or FZF(default). The script uses <a href="https://aniswim-api.herokuapp.com/"> Aniswim-API </a>.
+A CLI Tool to Search, Stream & Download Anime from Terminal either using Rofi or FZF(default). The script uses <a href="https://github.com/Sidmaz666/aniswim-api"> Aniswim-API </a>.
 
 ## Showcasae
 

@@ -16,9 +16,9 @@ scrape (){
 
   S_QUERY="$(echo "$query" | sed 's/[[:space:]]/+/g')"
 
-  URL="https://aniswim-api.herokuapp.com/search?q=$S_QUERY&page=$PAGE" 
-  [[ $S_QUERY = "-l"* ]] && URL="https://aniswim-api.herokuapp.com/latest&page=$PAGE"  
-  [[ $S_QUERY = "-r"* ]] &&  URL="https://aniswim-api.herokuapp.com/recent&page=$PAGE"  
+  URL="https://aniswim-api.vercel.app/search?q=$S_QUERY&page=$PAGE" 
+  [[ $S_QUERY = "-l"* ]] && URL="https://aniswim-api.vercel.app/latest&page=$PAGE"  
+  [[ $S_QUERY = "-r"* ]] &&  URL="https://aniswim-api.vercel.app/recent&page=$PAGE"  
 
   S_QUERY="$(echo "$S_QUERY" | sed 's/-l//g' | sed 's/-r//g'  | sed 's/[[:space:]]/+/g')"
 
@@ -44,7 +44,7 @@ select_anime=$(echo -ne "$(curl -s $URL | jq .'[] | .title' | sed 's/"//g' | cat
   [[ $NP = "yes" ]] && EP=$(($EP+1))
   [[ $PP = "yes" ]] && EP=$(($EP-1))
 
-  get_anime_data_raw=$(curl -s "https://aniswim-api.herokuapp.com/anime?id=$select_animeId&ep=$EP")
+  get_anime_data_raw=$(curl -s "https://aniswim-api.vercel.app/anime?id=$select_animeId&ep=$EP")
 
   total_ep=$(echo $get_anime_data_raw | jq .'total_ep' | sed 's/"//g')
   title=$(echo $get_anime_data_raw | jq .'title' | sed 's/"//g' | sed 's/[[:space:]]/-/g')
@@ -67,7 +67,7 @@ select_anime=$(echo -ne "$(curl -s $URL | jq .'[] | .title' | sed 's/"//g' | cat
   
   [[ -z $select_episode ]] && echo "No Episode Selected!" && exit
    
- [[ ! -z $select_episode ]] && [[ $select_episode > 1 ]] && EP=$select_episode && get_anime_data_raw=$(curl -s "https://aniswim-api.herokuapp.com/anime?id=$select_animeId&ep=$EP")
+ [[ ! -z $select_episode ]] && [[ $select_episode > 1 ]] && EP=$select_episode && get_anime_data_raw=$(curl -s "https://aniswim-api.vercel.app/anime?id=$select_animeId&ep=$EP")
 
     video_link_default=$(echo $get_anime_data_raw | jq .'video_links | .main_link' )
 

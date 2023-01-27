@@ -69,12 +69,12 @@ select_anime=$(echo -ne "$(curl -s $URL | jq .'[] | .title' | sed 's/"//g' | cat
    
  [[ ! -z $select_episode ]] && [[ $select_episode > 1 ]] && EP=$select_episode && get_anime_data_raw=$(curl -s "https://aniswim-api.vercel.app/anime?id=$select_animeId&ep=$EP")
 
-    video_link_default=$(echo $get_anime_data_raw | jq .'video_links | .main_link' )
+    video_link_default=$(echo $get_anime_data_raw | jq .'video_links[0] | .main_link' )
 
     [[ -z $video_link_default ]] && echo "Video Link Unavilable. Try Again!" && exit
   
-    video_link_=$(echo $get_anime_data_raw | jq '.video_links | .available_links | .[] | .url + " " + .quality ' | sed 's/[[:space:]]/"LABEL="/g' | sed 's/LABEL.*//g' ) 
-    video_labels=$(echo $get_anime_data_raw | jq '.video_links | .available_links | .[] | .url + " " + .quality ' | sed 's/[[:space:]]/"LABEL="/g' |sed 's/.*LABEL=//g' | cat -n  | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | sed 's/"//g' ) 
+    video_link_=$(echo $get_anime_data_raw | jq '.video_links[0] | .available_links | .[] | .url + " " + .quality ' | sed 's/[[:space:]]/"LABEL="/g' | sed 's/LABEL.*//g' ) 
+    video_labels=$(echo $get_anime_data_raw | jq '.video_links[0] | .available_links | .[] | .url + " " + .quality ' | sed 's/[[:space:]]/"LABEL="/g' |sed 's/.*LABEL=//g' | cat -n  | sed 's/^[ \t]*//g' | sed 's/[[:space:]]/ /g' | sed 's/"//g' ) 
 
 ask_quality=$(echo -ne "$video_labels\n0 Default" | $MENU )
 select_quality=$(echo $ask_quality | awk '{print $1}')  
@@ -98,7 +98,7 @@ action=$(echo -ne "Play\nDownload" | $MENU | awk '{print $1}')
  
 [[ -z $action ]] && exit
 
-referer=$(echo $get_anime_data_raw | jq '.iframeLink' | sed 's/"//g')
+referer=$(echo $get_anime_data_raw | jq '.streamLinks[0].link' | sed 's/"//g')
 
 dir_check(){
 [[ ! -d "$DOWNLAOD_DIR/$title" ]] && mkdir -p $DOWNLAOD_DIR/$(echo $title | sed 's/[[:space:]]/-/g')
